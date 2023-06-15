@@ -11,6 +11,22 @@ import ormsgpack, decimal
 from datetime import datetime
 from time import localtime
 
+
+####SUPABASE INTERACT##
+
+import os
+from supabase import create_client, Client
+
+url: str = os.environ.get("SUPABASE_URL")
+key: str = os.environ.get("SUPABASE_KEY")
+supabase: Client = create_client(url, key)
+
+## TEST creating user to auth table ####
+# Create a random user login email and password.
+# random_email: str = "test555@supamail.com"
+# random_password: str = "fqj13bnf2hiu23h"
+# user = supabase.auth.sign_up({ "email": random_email, "password": random_password, "username":"fireant" })
+
 def default(obj):
     if isinstance(obj, decimal.Decimal):
         return str(obj)
@@ -118,23 +134,46 @@ def ws_on_open(ws):
         "version": 1
     }))
 
+    _target = "GetSymbols"
+
     x = encode_json({
         "type": 1,
-        "invocationId":"55555",
-        "target": "GetBars",
-        "arguments":["VN30","1","2023-6-13 9:0:0","2023-6-13 15:0:0"]
+        "invocationId":"SESS_{session}: invoked: {target}".format(session=session, target=_target),
+        "target": "{target}".format(target = _target),
+        "arguments":[]
+    }) 
+
+    _target = "GetBars"
+
+    x = encode_json({
+        "type": 1,
+        "invocationId":"SESS_{session}: invoked: {target}".format(session=session, target=_target),
+        "target": "{target}".format(target = _target),
+        "arguments":["VN30","1","2023-6-14 11:29:0","2023-6-15 17:31:0"]
     }) 
     
     ws.send(x)    
 
-    y = encode_json({
+    ## "GetTradingStatisticsLastUpdated"
+    _target = "GetTradingStatisticsLastUpdated"
+
+    x = encode_json({
         "type": 1,
-        "invocationId":"66666",
-        "target": "GetSymbols",
-        "arguments": [""]
+        "invocationId":"SESS_{session}: invoked: {target}".format(session=session, target=_target),
+        "target": "{target}".format(target = _target),
+        "arguments":[]
     }) 
     
-    ws.send(y)  
+    ws.send(x)    
+
+    # y = encode_json({
+    #     "type": 1,
+    #     "invocationId":"66666",
+    #     "target": "GetSymbols",
+    #     "arguments": [""]
+    # }) 
+    
+    # ws.send(y)  
 
 ws_on_open(ws)
 
@@ -156,19 +195,38 @@ ws_on_open(ws)
 #sendMessage(ws, "create_study", [chart_session,"st4","st1","s1","ESD@tv-scripting-101!",{"text":"BNEhyMp2zcJFvntl+CdKjA==_DkJH8pNTUOoUT2BnMT6NHSuLIuKni9D9SDMm1UOm/vLtzAhPVypsvWlzDDenSfeyoFHLhX7G61HDlNHwqt/czTEwncKBDNi1b3fj26V54CkMKtrI21tXW7OQD/OSYxxd6SzPtFwiCVAoPbF2Y1lBIg/YE9nGDkr6jeDdPwF0d2bC+yN8lhBm03WYMOyrr6wFST+P/38BoSeZvMXI1Xfw84rnntV9+MDVxV8L19OE/0K/NBRvYpxgWMGCqH79/sHMrCsF6uOpIIgF8bEVQFGBKDSxbNa0nc+npqK5vPdHwvQuy5XuMnGIqsjR4sIMml2lJGi/XqzfU/L9Wj9xfuNNB2ty5PhxgzWiJU1Z1JTzsDsth2PyP29q8a91MQrmpZ9GwHnJdLjbzUv3vbOm9R4/u9K2lwhcBrqrLsj/VfVWMSBP","pineId":"TV_SPLITS","pineVersion":"8.0"}])
 
 
+def slice_str_at(str,index):
+    return str[:index]
+
 # Printing all the result
 a=""
 outfilename = create_output_file()
 while True:
     try:
         result = ws.recv()   
-        print(result)     
-        #a=a+result+"\n"
-        with open(outfilename,"a") as ww:
-            ww.write(result)
-            ww.close()
+        if "SESS_" in result:
+            #print(result)  
+            result = slice_str_at(result, -1)
+            #print(result)   
+            json_obj = json.loads(result)
+            print(json_obj["result"])
+            supabase.table("fireant_symbol_bars").insert({
+                "symbol": "VN30",
+                "from_datetime":"2023-06-15T09:00:00Z",
+                "to_datetime":"2023-06-15T15:00:00Z",
+                "bars": json_obj["result"],
+                "ticker":"1m"
+            })
+            #a=a+result+"\n"
+            with open(outfilename,"a") as ww:
+                ww.write(result)
+                ww.close()
     except Exception as e:
         print(e)
         break
     
-#generate_csv(a)
+if a != "": 
+    generate_csv(a)
+
+
+
