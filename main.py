@@ -251,6 +251,7 @@ while True:
             #a=a+result+"\n"
             with open(outfilename,"a") as ww:
                 ww.write(result)
+                ww.write("\n")
                 ww.close()
     except Exception as e:
         print(e)
