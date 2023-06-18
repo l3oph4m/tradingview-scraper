@@ -1,0 +1,10 @@
+{
+  "name": "mmx-fire-ant-vue-fe",
+  "version": "1.0.0",
+  "main": "main.js",
+  "license": "MIT",
+  "devDependencies": {
+    "@coreui/vue": "^4.8.1",
+    "create-vue": "3.7.1"
+  }
+}
