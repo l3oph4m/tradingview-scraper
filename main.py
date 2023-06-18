@@ -5,11 +5,21 @@ import string
 import re
 import pandas as pd
 import csv
+import sys
 
 import ormsgpack, decimal
 
 from datetime import datetime
 from time import localtime
+
+
+import datetime
+
+if len(sys.argv) != 2:
+        print("Usage: python script.py <days_delta>")
+        sys.exit(1)
+
+day_delta = int(sys.argv[1])
 
 
 ####SUPABASE INTERACT##
@@ -117,10 +127,10 @@ ws = create_connection(
 'wss://tradestation.fireant.vn/quote?access_token=eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiIsIng1dCI6IkdYdExONzViZlZQakdvNERWdjV4QkRITHpnSSIsImtpZCI6IkdYdExONzViZlZQakdvNERWdjV4QkRITHpnSSJ9.eyJpc3MiOiJodHRwczovL2FjY291bnRzLmZpcmVhbnQudm4iLCJhdWQiOiJodHRwczovL2FjY291bnRzLmZpcmVhbnQudm4vcmVzb3VyY2VzIiwiZXhwIjoxODg5NjIyNTMwLCJuYmYiOjE1ODk2MjI1MzAsImNsaWVudF9pZCI6ImZpcmVhbnQudHJhZGVzdGF0aW9uIiwic2NvcGUiOlsiYWNhZGVteS1yZWFkIiwiYWNhZGVteS13cml0ZSIsImFjY291bnRzLXJlYWQiLCJhY2NvdW50cy13cml0ZSIsImJsb2ctcmVhZCIsImNvbXBhbmllcy1yZWFkIiwiZmluYW5jZS1yZWFkIiwiaW5kaXZpZHVhbHMtcmVhZCIsImludmVzdG9wZWRpYS1yZWFkIiwib3JkZXJzLXJlYWQiLCJvcmRlcnMtd3JpdGUiLCJwb3N0cy1yZWFkIiwicG9zdHMtd3JpdGUiLCJzZWFyY2giLCJzeW1ib2xzLXJlYWQiLCJ1c2VyLWRhdGEtcmVhZCIsInVzZXItZGF0YS13cml0ZSIsInVzZXJzLXJlYWQiXSwianRpIjoiMjYxYTZhYWQ2MTQ5Njk1ZmJiYzcwODM5MjM0Njc1NWQifQ.dA5-HVzWv-BRfEiAd24uNBiBxASO-PAyWeWESovZm_hj4aXMAZA1-bWNZeXt88dqogo18AwpDQ-h6gefLPdZSFrG5umC1dVWaeYvUnGm62g4XS29fj6p01dhKNNqrsu5KrhnhdnKYVv9VdmbmqDfWR8wDgglk5cJFqalzq6dJWJInFQEPmUs9BW_Zs8tQDn-i5r4tYq2U8vCdqptXoM7YgPllXaPVDeccC9QNu2Xlp9WUvoROzoQXg25lFub1IYkTrM66gJ6t9fJRZToewCt495WNEOQFa_rwLCZ1QwzvL0iYkONHS_jZ0BOhBCdW9dWSawD6iF1SIQaFROvMDH1rg', headers=headers)
 
 session= generateSession()
-print("session generated {}".format(session))
+# print("session generated {}".format(session))
 
 chart_session= generateChartSession()
-print("chart_session generated {}".format(chart_session))
+# print("chart_session generated {}".format(chart_session))
 
 def encode_json(obj):
     return json.dumps(obj) + chr(0x1E)
@@ -128,52 +138,73 @@ def encode_json(obj):
 def ws_on_message(ws, message: str):
      print(message)
 
+def format_invokeID(session, _target, prev_dt, to_dt):
+    return "SESS_{session}_invoked_{target}_args_{prev}_to_{to}".format(
+        session=session, 
+        target=_target,
+        prev=prev_dt,
+        to=to_dt
+    )
+
+def format_dt_obj(dt):
+    return dt.strftime("%Y-%m-%d %H:%M:%S") #fireANT doesnt accept 'Z' as ending
+
+DAYS_DELTA = day_delta  ## prev day(s) delta for calculation prev day(s)
+
+
+current_datetime = datetime.datetime.now()
+prev_datetime_iso = format_dt_obj(current_datetime - datetime.timedelta(days=DAYS_DELTA))
+current_datetime_iso = format_dt_obj(current_datetime)
+
+# def toFireAntDTObj(dt):
+#     return dt.split('T').any(t => t.slice_str_at(11))
+
+print("Current datetime (ISO format):", current_datetime_iso)
+print("Prev datetime (ISO format):", prev_datetime_iso)
+
+
 def ws_on_open(ws):
     ws.send(encode_json({
         "protocol": "json",
         "version": 1
     }))
 
-    _target = "GetSymbols"
+    # _target = "GetSymbols"
 
-    x = encode_json({
-        "type": 1,
-        "invocationId":"SESS_{session}: invoked: {target}".format(session=session, target=_target),
-        "target": "{target}".format(target = _target),
-        "arguments":[]
-    }) 
+    # x = encode_json({
+    #     "type": 1,
+    #     "invocationId":format_invokeID(session, _target),
+    #     "target": "{target}".format(target = _target),
+    #     "arguments":[]
+    # }) 
 
     _target = "GetBars"
 
     x = encode_json({
         "type": 1,
-        "invocationId":"SESS_{session}: invoked: {target}".format(session=session, target=_target),
+        "invocationId":format_invokeID(session, _target, prev_datetime_iso, current_datetime_iso),
         "target": "{target}".format(target = _target),
-        "arguments":["VN30","1","2023-6-14 11:29:0","2023-6-15 17:31:0"]
+        "arguments":[
+            "VN30",
+            "1",
+             prev_datetime_iso, 
+             current_datetime_iso
+        ]
     }) 
     
     ws.send(x)    
 
     ## "GetTradingStatisticsLastUpdated"
-    _target = "GetTradingStatisticsLastUpdated"
+    # _target = "GetTradingStatisticsLastUpdated"
 
-    x = encode_json({
-        "type": 1,
-        "invocationId":"SESS_{session}: invoked: {target}".format(session=session, target=_target),
-        "target": "{target}".format(target = _target),
-        "arguments":[]
-    }) 
-    
-    ws.send(x)    
-
-    # y = encode_json({
+    # x = encode_json({
     #     "type": 1,
-    #     "invocationId":"66666",
-    #     "target": "GetSymbols",
-    #     "arguments": [""]
+    #     "invocationId":format_invokeID(session, _target),
+    #     "target": "{target}".format(target = _target),
+    #     "arguments":[]
     # }) 
     
-    # ws.send(y)  
+    # ws.send(x)    
 
 ws_on_open(ws)
 
@@ -205,18 +236,18 @@ while True:
     try:
         result = ws.recv()   
         if "SESS_" in result:
-            #print(result)  
+            # print(result)  
             result = slice_str_at(result, -1)
-            #print(result)   
+            # print(result)   
             json_obj = json.loads(result)
-            print(json_obj["result"])
-            supabase.table("fireant_symbol_bars").insert({
-                "symbol": "VN30",
-                "from_datetime":"2023-06-15T09:00:00Z",
-                "to_datetime":"2023-06-15T15:00:00Z",
-                "bars": json_obj["result"],
-                "ticker":"1m"
-            })
+            # print(json_obj["result"])
+            # supabase.table("fireant_symbol_bars").insert({
+            #     "symbol": "VN30",
+            #     "from_datetime":"2023-06-15T09:00:00Z",
+            #     "to_datetime":"2023-06-15T15:00:00Z",
+            #     "bars": json_obj["result"],
+            #     "ticker":"1m"
+            # })
             #a=a+result+"\n"
             with open(outfilename,"a") as ww:
                 ww.write(result)
